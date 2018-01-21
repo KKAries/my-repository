@@ -4,6 +4,8 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileSystem;
@@ -54,7 +56,8 @@ public class MyNioExample {
 		//readFileDemo();
 		//writeFileEasyDemo();
 		//readFileEasyDemo();
-		watchFileDemo();
+		//watchFileDemo();
+		seekableChannelDemo();
 	}
 	
 	public static void getJavaFiles(String path){
@@ -170,13 +173,14 @@ public class MyNioExample {
 			WatchService watcher = 
 					FileSystems.getDefault().newWatchService();
 			
-			Path path = FileSystems.getDefault().getPath("E:/test/");
+			Path path = Paths.get("E:/test/");
 			WatchKey key = path.register(watcher, StandardWatchEventKinds.ENTRY_MODIFY);
 			while(true) {
 				key = watcher.take();
 				for (WatchEvent<?> event:key.pollEvents()){
 					if (event.kind()== StandardWatchEventKinds.ENTRY_MODIFY){
-						System.out.println("the test file has been modified");
+						Path contextPath = (Path)event.context();
+						System.out.println("the test dir modified:" + contextPath.getFileName());
 					}
 				}
 				key.reset();
@@ -185,5 +189,20 @@ public class MyNioExample {
 		catch (IOException | InterruptedException e){
 			e.printStackTrace();
 		}
+	}
+	
+	public static void seekableChannelDemo(){
+		ByteBuffer buffer = ByteBuffer.allocate(10);
+		try {
+			FileChannel channel = FileChannel.open(testPath, StandardOpenOption.READ);
+			channel.read(buffer, channel.size()-10);
+			byte[] bytes = buffer.array();
+			Path path = Paths.get("E:/test/newtext.txt");
+			Files.write(path, bytes, StandardOpenOption.WRITE);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
 	}
 }
