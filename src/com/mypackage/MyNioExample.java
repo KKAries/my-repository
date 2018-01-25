@@ -4,10 +4,13 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.CompletionHandler;
 import java.nio.channels.FileChannel;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileSystem;
@@ -37,12 +40,14 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 public class MyNioExample {
-	static final Path testPath = Paths.get("E:/mytext.txt");
-	static final Path logFilePath = Paths.get("d:/wwtools.log");
+	static final Path prefixPath = Paths.get("d:/demo/files");
+	static final Path testReadPath = prefixPath.resolve("testread.txt");
+	static final Path testWritePath = prefixPath.resolve("testwrite.txt");
+	static final Path logFilePath = prefixPath.resolve("wwtools.log");
 	static final Path fakeAbsolutePath = Paths.get("e:/dir1/dir2/dir3/dir4/fake.java");
 	static final Path fakeRelativePath = Paths.get("dir1/dir2/dir3/dir4/fake.java");
 	static final Path symbolicLinkPath = Paths.get("c:/dev");
-	static final Path prefixPath = Paths.get("d:/dev/GIT");
+	
 	
 	
 	public static void main(String[] args) throws IOException {		
@@ -52,13 +57,13 @@ public class MyNioExample {
 		//getJavaFilesRecursively("E:/Dev Folder/JavaWorkplace/");
 		//copyFile("E:/mytext.txt", "E:/test/newtext.txt");
 		//readFileAttributesDemo("E:/mytext.txt");
-		setFileAttributeDemo(logFilePath);
-		//writeFileDemo();
-		//readFileDemo();
-		//writeFileEasyDemo();
-		//readFileEasyDemo();
+		//setFileAttributeDemo(logFilePath);
+		//readWriteSmallFileDemo(testReadPath, testWritePath);
+		//bufferedIODemo(testReadPath, testWritePath);
+		//UnbufferedStreamsDemo(testReadPath, testWritePath);
 		//watchFileDemo();
-		//seekableChannelDemo();
+		//seekableChannelDemo(testReadPath, testWritePath);
+		FileChannelDemo(testReadPath, testWritePath);
 		//asyncCallbackStyleDemo();
 	}
 	
@@ -162,11 +167,13 @@ public class MyNioExample {
 		}
 	}
 	
-	public static void readFileDemo() {
-		try(BufferedReader reader = Files.newBufferedReader(testPath, StandardCharsets.UTF_8)){
+	public static void bufferedIODemo(Path source, Path dest) {
+		try(BufferedReader reader = Files.newBufferedReader(source, StandardCharsets.UTF_8);
+				BufferedWriter writer = Files.newBufferedWriter(dest, StandardCharsets.UTF_8)){
 			String lineString;
 			while((lineString=reader.readLine())!=null){
 				System.out.println(lineString);
+				writer.write(lineString+"\n");
 			}
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -174,40 +181,31 @@ public class MyNioExample {
 		}
 	}
 	
-	public static void writeFileDemo() {
-		try(BufferedWriter writer = Files.newBufferedWriter(testPath, 
-				StandardCharsets.UTF_8, StandardOpenOption.APPEND)){
-			writer.write("Hellow world!");
-			
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	}
 	
-	public static void readFileEasyDemo() {
+	public static void readWriteSmallFileDemo(Path source, Path dest) {
 		try {
-			List<String> lines = Files.readAllLines(testPath, StandardCharsets.UTF_8);
+			List<String> lines = Files.readAllLines(source, StandardCharsets.UTF_8);
 			for(String line:lines){
 				System.out.println(line);
 			}
-			byte[] bytes = Files.readAllBytes(testPath);
+			Files.write(dest, lines, StandardOpenOption.CREATE);
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
 	
-	public static void writeFileEasyDemo() {
-		List<String> lines = new ArrayList<String>();
-		lines.add("of");
-		lines.add("everything");
-		try {
-			Files.write(testPath, lines, StandardOpenOption.APPEND);
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+	public static void UnbufferedStreamsDemo(Path source, Path dest){
+		try(InputStream in = Files.newInputStream(source);
+				OutputStream out = Files.newOutputStream(dest)){
+			int c;
+			while((c=in.read()) != -1){
+				out.write(c);
+			}
+		} catch (IOException e){
+			System.err.println(e);
 		}
+		
 	}
 	
 	public static void watchFileDemo(){
@@ -233,15 +231,33 @@ public class MyNioExample {
 		}
 	}
 	
-	public static void seekableChannelDemo(){
+	public static void FileChannelDemo(Path source, Path dest){
+		
+		try(SeekableByteChannel rsbc = Files.newByteChannel(source);
+				SeekableByteChannel wsbc = Files.newByteChannel(dest, StandardOpenOption.WRITE)){
+			ByteBuffer buffer = ByteBuffer.allocate(10);
+			while(rsbc.read(buffer)>0){
+				buffer.flip();
+				wsbc.write(buffer);
+				buffer.clear();
+			}
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+	}
+	
+	public static void seekableChannelDemo(Path source, Path dest){
 		ByteBuffer buffer = ByteBuffer.allocate(10);
-		try (FileChannel channel = FileChannel.open(testPath, StandardOpenOption.READ)){
+		try (FileChannel channel = FileChannel.open(source, StandardOpenOption.READ);
+				FileChannel writeChannel = FileChannel.open(dest, StandardOpenOption.WRITE)){
 			channel.read(buffer, channel.size()-10);
-			byte[] bytes = buffer.array();
-			Path path = Paths.get("E:/test/newtext.txt");
 			
+			buffer.flip();
 			
-			Files.write(path, bytes, StandardOpenOption.WRITE);
+			writeChannel.write(buffer);
+
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
