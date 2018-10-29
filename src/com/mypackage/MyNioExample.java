@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.CompletionHandler;
@@ -47,24 +48,26 @@ public class MyNioExample {
 	static final Path fakeAbsolutePath = Paths.get("e:/dir1/dir2/dir3/dir4/fake.java");
 	static final Path fakeRelativePath = Paths.get("dir1/dir2/dir3/dir4/fake.java");
 	static final Path symbolicLinkPath = Paths.get("c:/dev");
-	
+	static final Path testSourcePath = prefixPath.resolve("source.txt");
+	static final Path testDestPath = prefixPath.resolve("dest.txt");
 	
 	
 	public static void main(String[] args) throws IOException {		
 		//getPathInfoDemo(fakeAbsolutePath);
 		//convertPathDemo(symbolicLinkPath);
-		//getJavaFiles("E:/Dev Folder/JavaWorkplace/Interview/src/com/mypackage");
-		//getJavaFilesRecursively("E:/Dev Folder/JavaWorkplace/");
-		//copyFile("E:/mytext.txt", "E:/test/newtext.txt");
-		//readFileAttributesDemo("E:/mytext.txt");
+		//getJavaFiles("d:/dev/GIT/my-repository/src/com/");
+		//getJavaFilesRecursively("d:/dev/GIT");
+		//copyFile(testSourcePath, testDestPath);
+		//readFileAttributesDemo(logFilePath);
 		//setFileAttributeDemo(logFilePath);
 		//readWriteSmallFileDemo(testReadPath, testWritePath);
 		//bufferedIODemo(testReadPath, testWritePath);
 		//UnbufferedStreamsDemo(testReadPath, testWritePath);
-		//watchFileDemo();
+		//watchFolderDemo(prefixPath);
 		//seekableChannelDemo(testReadPath, testWritePath);
-		FileChannelDemo(testReadPath, testWritePath);
-		//asyncCallbackStyleDemo();
+		//FileChannelDemo(testReadPath, testWritePath);
+		asyncCallbackStyleDemo(logFilePath);
+		//asyncFutureStyleDemo(logFilePath);
 	}
 	
 	public static void getPathInfoDemo(Path path){
@@ -109,7 +112,7 @@ public class MyNioExample {
 	
 	public static void getJavaFiles(String path){
 		Path sourcePath = Paths.get(path);
-		try(DirectoryStream<Path> stream = Files.newDirectoryStream(sourcePath, "*.java")){
+		try(DirectoryStream<Path> stream = Files.newDirectoryStream(sourcePath, "**/*.java")){
 			for (Path entry:stream) {
 				System.out.println(entry.getFileName());
 			}
@@ -147,10 +150,8 @@ public class MyNioExample {
 		
 	}
 	
-	public static void copyFile (String sourceFile, String destFile) throws IOException {
-		Path source = Paths.get(sourceFile);
-		Path destination = Paths.get(destFile);
-		Files.copy(source, destination, StandardCopyOption.REPLACE_EXISTING);
+	public static void copyFile (Path source, Path dest) throws IOException {
+		Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
 	}
 	
 	public static void setFileAttributeDemo(Path path) {
@@ -188,7 +189,7 @@ public class MyNioExample {
 			for(String line:lines){
 				System.out.println(line);
 			}
-			Files.write(dest, lines, StandardOpenOption.CREATE);
+			Files.write(dest, lines, StandardOpenOption.WRITE);
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -208,25 +209,24 @@ public class MyNioExample {
 		
 	}
 	
-	public static void watchFileDemo(){
+	public static void watchFolderDemo(Path directory) throws InterruptedException{
 		try {
 			WatchService watcher = 
 					FileSystems.getDefault().newWatchService();
 			
-			Path path = Paths.get("E:/test/");
-			WatchKey key = path.register(watcher, StandardWatchEventKinds.ENTRY_MODIFY);
+			WatchKey key = directory.register(watcher, new WatchEvent.Kind<?>[]{StandardWatchEventKinds.ENTRY_MODIFY});
 			while(true) {
-				key = watcher.take();
-				for (WatchEvent<?> event:key.pollEvents()){
-					if (event.kind()== StandardWatchEventKinds.ENTRY_MODIFY){
-						Path contextPath = (Path)event.context();
-						System.out.println("the test dir modified:" + contextPath.getFileName());
-					}
+				key= watcher.take();
+				for (WatchEvent<?> event : key.pollEvents()){
+					Path contextPath = (Path)event.context();
+					System.out.println(event);
+					System.out.println("the test dir modified:" + contextPath.getFileName() + " -- " + event.kind());
 				}
+			
 				key.reset();
 			}
 		}
-		catch (IOException | InterruptedException e){
+		catch (IOException e){
 			e.printStackTrace();
 		}
 	}
@@ -265,11 +265,11 @@ public class MyNioExample {
 		
 	}
 	
-	public static void asyncFutureStyleDemo(){
+	public static void asyncFutureStyleDemo(Path logFile){
 		try{
-			Path logFile = Paths.get("d:/wwtools.log");
+			
 			AsynchronousFileChannel channel = AsynchronousFileChannel.open(logFile);
-			ByteBuffer buffer = ByteBuffer.allocate(10_000_000);
+			ByteBuffer buffer = ByteBuffer.allocate(20_000_000);
 			System.out.println("file read start");
 			Future<Integer> result = channel.read(buffer, 0);
 			
@@ -296,11 +296,11 @@ public class MyNioExample {
 		}
 	}
 	
-	public static void asyncCallbackStyleDemo(){
+	public static void asyncCallbackStyleDemo(Path logFile){
 		try {
-			Path logFile = Paths.get("d:/wwtools.log");
+			
 			AsynchronousFileChannel channel = AsynchronousFileChannel.open(logFile);
-			ByteBuffer buffer = ByteBuffer.allocate(10_000_000);
+			ByteBuffer buffer = ByteBuffer.allocate(20_000_000);
 			
 			channel.read(buffer, 0, buffer, new CompletionHandler<Integer, ByteBuffer>(){
 				public void completed(Integer result, ByteBuffer attachment){
